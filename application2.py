@@ -6,12 +6,17 @@ from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import numpy as np
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
+
+# Initialize webcam
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    st.error("No camera found or could not open the default camera.")
+    st.stop()
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
@@ -52,13 +57,9 @@ def log_attendance(name, timestamp):
 # Generate video frames for real-time feed
 def generate_frames():
     while True:
-        # Use the camera input from Streamlit
-        camera_input = st.camera_input("Capture an image")
-        if camera_input is None:
-            continue  # Wait for an image
-
-        # Read the image from the camera input
-        frame = cv2.imdecode(np.frombuffer(camera_input.read(), np.uint8), cv2.IMREAD_COLOR)
+        ret, frame = cap.read()
+        if not ret:
+            break  # End the generator if there are no frames
 
         results = model.predict(frame)
         names_in_frame = []
@@ -133,5 +134,4 @@ try:
 except StopIteration:
     st.error("Video stream ended unexpectedly.")
 finally:
-    # No need to release camera since we are using Streamlit's camera input
-    pass
+    cap.release()
