@@ -27,7 +27,6 @@ api_key = 'xkeysib-22bb75d181cbb461aa3d8233242cd53b377ee90ed14593b80e1e215894a47
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
 
-
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
     api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
@@ -48,14 +47,12 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-
 # Function to save recognized names to a log
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
     formatted_date = timestamp.strftime("%d-%m-%Y")
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
-
 
 # Generate video frames for real-time feed
 def generate_frames():
@@ -84,7 +81,6 @@ def generate_frames():
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
         yield frame
-
 
 # Streamlit application layout
 st.title("Attendance System")
