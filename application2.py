@@ -11,8 +11,11 @@ import datetime
 app = Flask(__name__)
 
 # Load the YOLOv8 model (trained model)
-model = YOLO('C:\\Users\\samee\\PycharmProjects\\webcamproject\\best.pt')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Load the YOLOv8 model (trained model)
+model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with relative path
+model = YOLO(model_path)
 # Initialize webcam
 cap = cv2.VideoCapture(0)
 
