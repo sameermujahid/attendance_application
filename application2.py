@@ -12,12 +12,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
 
-# Initialize webcam
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    st.error("No camera found or could not open the default camera.")
-    st.stop()
-
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
 deadline = "09:00"  # Default deadline time
@@ -26,7 +20,6 @@ deadline = "09:00"  # Default deadline time
 api_key = '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'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
-
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -48,7 +41,6 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-
 # Function to save recognized names to a log
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
@@ -56,13 +48,13 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-
-# Generate video frames for real-time feed
-def generate_frames():
-    while True:
+# Process image or video file for attendance detection
+def process_file(file_path):
+    cap = cv2.VideoCapture(file_path)
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
-            break  # End the generator if there are no frames
+            break
 
         results = model.predict(frame)
         names_in_frame = []
@@ -83,60 +75,54 @@ def generate_frames():
             log_attendance(name, datetime.datetime.now())
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-        yield frame
-
+        return frame
 
 # Streamlit application layout
 st.title("Attendance System")
-st.write("## Live Attendance")
+st.write("## Upload a video or image file for attendance detection")
 
-# Start video feed
-frame_placeholder = st.empty()
-frame_generator = generate_frames()
+# File uploader for video or image files
+uploaded_file = st.file_uploader("Upload Video/Image", type=["mp4", "avi", "jpg", "png"])
 
-# Static attendance list heading and buttons
-st.subheader("Attendance List")
-attendance_placeholder = st.empty()
+if uploaded_file is not None:
+    # Save uploaded file temporarily
+    temp_file_path = os.path.join(BASE_DIR, "temp_file." + uploaded_file.name.split('.')[-1])
+    with open(temp_file_path, 'wb') as f:
+        f.write(uploaded_file.getbuffer())
+    
+    # Process the uploaded file
+    processed_frame = process_file(temp_file_path)
+    
+    # Display the processed frame
+    if processed_frame is not None:
+        st.image(processed_frame, channels="RGB", use_column_width=True)
+    
+    # Show attendance data
+    st.subheader("Attendance List")
+    attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
+                       for name, info in recognized_names.items()]
+    attendance_df = pd.DataFrame(attendance_data)
+    st.dataframe(attendance_df)
 
-# Buttons for actions
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Send Attendance Email", key="send_email"):
-        if recognized_names:
-            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
-                                               for name, info in recognized_names.items())
-            email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
-            send_brevo_notification("Attendance List", email_content)
-            st.success("Attendance list sent successfully!")
-        else:
-            st.error("No attendees to send.")
+    # Buttons for actions
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Send Attendance Email", key="send_email"):
+            if recognized_names:
+                attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']} | Late: {info['late']}"
+                                                   for name, info in recognized_names.items())
+                email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
+                send_brevo_notification("Attendance List", email_content)
+                st.success("Attendance list sent successfully!")
+            else:
+                st.error("No attendees to send.")
 
-with col2:
-    if st.button("Export Attendance", key="export_attendance"):
-        if recognized_names:
-            filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
-            attendance_df = pd.DataFrame.from_records(recognized_names.values())
-            attendance_df.to_excel(filename, index=False)
-            st.success(f"Attendance list saved as {filename}.")
-        else:
-            st.error("No attendees to export.")
-
-# Run the Streamlit app with live updates
-try:
-    while True:
-        frame = next(frame_generator)
-        frame_placeholder.image(frame, channels="RGB", use_column_width=True)
-
-        # Update the attendance list in the placeholder
-        attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
-                           for name, info in recognized_names.items()]
-        attendance_df = pd.DataFrame(attendance_data)
-
-        # Update attendance list display
-        attendance_placeholder.dataframe(attendance_df)
-
-except StopIteration:
-    st.error("Video stream ended unexpectedly.")
-finally:
-    # Ensure the video capture is released when done
-    cap.release()
+    with col2:
+        if st.button("Export Attendance", key="export_attendance"):
+            if recognized_names:
+                filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
+                attendance_df = pd.DataFrame.from_records(recognized_names.values())
+                attendance_df.to_excel(filename, index=False)
+                st.success(f"Attendance list saved as {filename}.")
+            else:
+                st.error("No attendees to export.")
