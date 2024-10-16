@@ -1,0 +1,7 @@
+Flask
+Flask-SocketIO
+opencv-python
+torch
+ultralytics
+pandas
+sib-api-v3-sdk
