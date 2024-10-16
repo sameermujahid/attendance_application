@@ -1,22 +1,17 @@
 import os
-import cv2
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
+import imageio
+import numpy as np
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
-
-# Initialize webcam
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    st.error("No camera found or could not open the default camera.")
-    st.stop()
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
@@ -54,33 +49,31 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-# Generate video frames for real-time feed
+# Generate video frames for real-time feed using imageio
 def generate_frames():
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break  # End the generator if there are no frames
+    with imageio.get_reader("<video0>") as video:  # Use "<video0>" for the default webcam
+        for frame in video:
+            frame = np.array(frame)  # Convert to a NumPy array
+            results = model.predict(frame)
+            names_in_frame = []
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    conf = box.conf[0]
+                    cls = int(box.cls[0])
+                    name = model.names[cls]
+                    names_in_frame.append(name)
 
-        results = model.predict(frame)
-        names_in_frame = []
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = box.conf[0]
-                cls = int(box.cls[0])
-                name = model.names[cls]
-                names_in_frame.append(name)
+                    label = f"{name}: {conf:.2f}"
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-                label = f"{name}: {conf:.2f}"
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # Log attendance for new names (only once)
+            for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+                log_attendance(name, datetime.datetime.now())
 
-        # Log attendance for new names (only once)
-        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
-            log_attendance(name, datetime.datetime.now())
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-        yield frame
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
+            yield frame
 
 # Streamlit application layout
 st.title("Attendance System")
