@@ -12,40 +12,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
 
-# Function to get available camera indices
-def get_available_cameras():
-    available_cameras = []
-    for i in range(5):  # Adjust this range as needed
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            available_cameras.append(i)
-            cap.release()  # Release the camera
-    return available_cameras
-
-# Get available cameras
-camera_indices = get_available_cameras()
-
-# Streamlit application layout
-st.title("Attendance System")
-st.write("## Live Attendance")
-
-# Dropdown for camera selection
-selected_camera_index = st.selectbox("Select Camera", options=camera_indices)
-
-# Initialize webcam with the selected camera index
-cap = cv2.VideoCapture(selected_camera_index)
-if not cap.isOpened():
-    st.error("Could not open the selected camera.")
-    st.stop()
+# Brevo API Configuration
+api_key = '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'
+configuration = sib_api_v3_sdk.Configuration()
+configuration.api_key['api-key'] = api_key
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
 deadline = "09:00"  # Default deadline time
 
-# Brevo API Configuration
-api_key = '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'
-configuration = sib_api_v3_sdk.Configuration()
-configuration.api_key['api-key'] = api_key
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -67,6 +42,7 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
+
 # Function to save recognized names to a log
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
@@ -74,8 +50,25 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
+
+# Function to list available cameras
+def list_available_cameras(max_cameras=10):
+    available_cameras = []
+    for i in range(max_cameras):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            available_cameras.append(i)
+            cap.release()
+    return available_cameras
+
+
 # Generate video frames for real-time feed
-def generate_frames():
+def generate_frames(camera_index):
+    cap = cv2.VideoCapture(camera_index)
+    if not cap.isOpened():
+        st.error("No camera found or could not open the selected camera.")
+        return
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -102,53 +95,65 @@ def generate_frames():
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
         yield frame
 
-# Start video feed
-frame_placeholder = st.empty()
-frame_generator = generate_frames()
+    cap.release()  # Ensure camera is released
 
-# Static attendance list heading and buttons
-st.subheader("Attendance List")
-attendance_placeholder = st.empty()
 
-# Buttons for actions
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Send Attendance Email", key="send_email"):
-        if recognized_names:
-            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
-                                               for name, info in recognized_names.items())
-            email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
-            send_brevo_notification("Attendance List", email_content)
-            st.success("Attendance list sent successfully!")
-        else:
-            st.error("No attendees to send.")
+# Streamlit application layout
+st.title("Attendance System")
+st.write("## Live Attendance")
 
-with col2:
-    if st.button("Export Attendance", key="export_attendance"):
-        if recognized_names:
-            filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
-            attendance_df = pd.DataFrame.from_records(recognized_names.values())
-            attendance_df.to_excel(filename, index=False)
-            st.success(f"Attendance list saved as {filename}.")
-        else:
-            st.error("No attendees to export.")
+# List available cameras
+available_cameras = list_available_cameras()
+if not available_cameras:
+    st.error("No cameras found.")
+else:
+    # Dropdown for selecting camera
+    camera_index = st.selectbox("Select Camera", available_cameras)
 
-# Run the Streamlit app with live updates
-try:
-    while True:
-        frame = next(frame_generator)
-        frame_placeholder.image(frame, channels="RGB", use_column_width=True)
+    # Start video feed
+    frame_placeholder = st.empty()
+    frame_generator = generate_frames(camera_index)
 
-        # Update the attendance list in the placeholder
-        attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
-                           for name, info in recognized_names.items()]
-        attendance_df = pd.DataFrame(attendance_data)
+    # Static attendance list heading and buttons
+    st.subheader("Attendance List")
+    attendance_placeholder = st.empty()
 
-        # Update attendance list display
-        attendance_placeholder.dataframe(attendance_df)
+    # Buttons for actions
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Send Attendance Email", key="send_email"):
+            if recognized_names:
+                attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
+                                                   for name, info in recognized_names.items())
+                email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
+                send_brevo_notification("Attendance List", email_content)
+                st.success("Attendance list sent successfully!")
+            else:
+                st.error("No attendees to send.")
 
-except StopIteration:
-    st.error("Video stream ended unexpectedly.")
-finally:
-    # Ensure the video capture is released when done
-    cap.release()
+    with col2:
+        if st.button("Export Attendance", key="export_attendance"):
+            if recognized_names:
+                filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
+                attendance_df = pd.DataFrame.from_records(recognized_names.values())
+                attendance_df.to_excel(filename, index=False)
+                st.success(f"Attendance list saved as {filename}.")
+            else:
+                st.error("No attendees to export.")
+
+    # Run the Streamlit app with live updates
+    try:
+        while True:
+            frame = next(frame_generator)
+            frame_placeholder.image(frame, channels="RGB", use_column_width=True)
+
+            # Update the attendance list in the placeholder
+            attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
+                               for name, info in recognized_names.items()]
+            attendance_df = pd.DataFrame(attendance_data)
+
+            # Update attendance list display
+            attendance_placeholder.dataframe(attendance_df)
+
+    except StopIteration:
+        st.error("Video stream ended unexpectedly.")
