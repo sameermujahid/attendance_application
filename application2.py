@@ -49,7 +49,7 @@ def log_attendance(name, timestamp):
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
 # Streamlit application layout
-st.title("Attendance System")
+st.title("Attendance")
 st.write("## Live Attendance")
 
 # Start video feed using OpenCV
