@@ -12,30 +12,30 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
 
-# Function to get available cameras
-def get_camera_indices():
-    indices = []
-    for i in range(5):  # Check first 5 camera indices
+# Function to get available camera indices
+def get_available_cameras():
+    available_cameras = []
+    for i in range(5):  # Adjust this range as needed
         cap = cv2.VideoCapture(i)
         if cap.isOpened():
-            indices.append(i)
-            cap.release()
-    return indices
+            available_cameras.append(i)
+            cap.release()  # Release the camera
+    return available_cameras
 
-# Get available camera indices
-camera_indices = get_camera_indices()
+# Get available cameras
+camera_indices = get_available_cameras()
 
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
 
-# Dropdown to select camera
-selected_camera = st.selectbox("Select Camera", camera_indices)
+# Dropdown for camera selection
+selected_camera_index = st.selectbox("Select Camera", options=camera_indices)
 
-# Initialize webcam
-cap = cv2.VideoCapture(selected_camera)
+# Initialize webcam with the selected camera index
+cap = cv2.VideoCapture(selected_camera_index)
 if not cap.isOpened():
-    st.error("No camera found or could not open the selected camera.")
+    st.error("Could not open the selected camera.")
     st.stop()
 
 # Dictionary to keep track of recognized names and their timestamps
