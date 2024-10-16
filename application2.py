@@ -6,7 +6,6 @@ from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import imageio
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -51,9 +50,18 @@ def log_attendance(name, timestamp):
 
 # Generate video frames for real-time feed
 def generate_frames(camera_index):
-    reader = imageio.get_reader(f'camera://{camera_index}', 'ffmpeg')
+    cap = cv2.VideoCapture(camera_index)
     
-    for frame in reader:
+    if not cap.isOpened():
+        st.error("Error: Could not open video stream.")
+        return
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Error: Could not read frame.")
+            break
+
         results = model.predict(frame)
         names_in_frame = []
         for result in results:
@@ -74,6 +82,8 @@ def generate_frames(camera_index):
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
         yield frame
+
+    cap.release()  # Ensure the video capture is released when done
 
 # Streamlit application layout
 st.title("Attendance System")
@@ -132,5 +142,5 @@ except StopIteration:
     st.error("Video stream ended unexpectedly.")
 finally:
     # Ensure the video capture is released when done
-    if 'reader' in locals():
-        reader.close()
+    if 'cap' in locals():
+        cap.release()
