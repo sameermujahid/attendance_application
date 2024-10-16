@@ -1,12 +1,11 @@
 import os
-import cv2
 import pandas as pd
 import streamlit as st
-from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
+from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +20,6 @@ deadline = "09:00"  # Default deadline time
 api_key = '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'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
-
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -43,25 +41,22 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-
-# Function to save recognized names to a log
+# Function to log attendance
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
     formatted_date = timestamp.strftime("%d-%m-%Y")
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-
-# Define a Video Transformer
+# Video transformer class for processing video frames
 class VideoTransformer(VideoTransformerBase):
     def __init__(self):
-        self.recognized_names = recognized_names
+        super().__init__()
 
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr")
         results = model.predict(img)
         names_in_frame = []
-        
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -80,12 +75,11 @@ class VideoTransformer(VideoTransformerBase):
 
         return img
 
-
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
 
-# Start video feed with streamlit_webrtc
+# Start video feed with streamlit-webrtc
 webrtc_streamer(key="example", video_transformer_factory=VideoTransformer)
 
 # Static attendance list heading and buttons
@@ -120,5 +114,5 @@ attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "L
                    for name, info in recognized_names.items()]
 attendance_df = pd.DataFrame(attendance_data)
 
-# Update attendance list in the placeholder
+# Display the attendance dataframe
 attendance_placeholder.dataframe(attendance_df)
