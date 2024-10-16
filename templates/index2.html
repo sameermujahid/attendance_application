@@ -1,0 +1,171 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Attendance System</title>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+        <style>
+            body {
+                background-color: #1e1e1e; /* Dark background */
+                color: #e0e1dd; /* Light text color */
+                font-family: 'Roboto', sans-serif;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+                margin-bottom: 20px;
+                text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            }
+
+            h2 {
+                font-size: 2rem;
+                margin: 20px 0;
+                text-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+            }
+
+            input[type="text"], input[type="time"] {
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #415a77;
+                margin-bottom: 20px;
+                width: 300px;
+                font-size: 1rem;
+            }
+
+            ul {
+                list-style-type: none;
+                padding: 0;
+                margin: 20px 0;
+                width: 100%;
+                max-width: 600px;
+            }
+
+            li {
+                border-radius: 8px;
+                padding: 15px;
+                margin: 5px 0;
+                transition: background 0.3s;
+            }
+
+            .on-time {
+                background: rgba(0, 255, 0, 0.1); /* Green for on-time */
+            }
+
+            .late {
+                background: rgba(255, 0, 0, 0.1); /* Red for late */
+            }
+
+            button {
+                background-color: #415a77; /* Button background color */
+                color: #e0e1dd; /* Button text color */
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 1.2rem;
+                margin: 10px;
+                cursor: pointer;
+                transition: background 0.3s, transform 0.2s;
+            }
+
+            button:hover {
+                background-color: #778da9; /* Lighter button color on hover */
+                transform: translateY(-2px);
+            }
+
+            img {
+                border-radius: 8px;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Attendance System</h1>
+
+        <div style="display: flex; flex-direction: row; align-items: center;gap:30px;">
+
+            <div style="display: flex; flex-direction: column; align-items: left;">
+                <h2>Live Attendance:</h2>
+                <input type="text" id="search" placeholder="Search Attendance...">
+                <ul id="attendance-list">
+                    {% for name, info in attendance.items() %}
+                    <li class="{{ 'on-time' if info['time'] <= deadline else 'late' }}">{{ name }} - Time: {{ info['time'] }} | Date: {{ info['date'] }}</li>
+                    {% endfor %}
+                </ul>
+                <div style="display: flex; flex-direction: row;">
+                    <button id="send-email">Send Attendance Email</button>
+                    <button id="export-attendance">Export Attendance</button>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column;">
+                <h2>Video Feed:</h2>
+                <img src="{{ url_for('video_feed') }}" id="video" width="600">
+            </div>
+        </div>
+
+        <script>
+            // Connect to the Socket.IO server
+            const socket = io.connect('http://' + document.domain + ':' + location.port);
+
+            // Update attendance list with color coding based on deadline
+            function updateAttendanceList(data, deadline) {
+                const attendanceList = $('#attendance-list');
+                attendanceList.empty(); // Clear the list
+
+                // Update the attendance list with the new data
+                for (const [name, info] of Object.entries(data)) {
+                    const late = info.time > deadline ? 'late' : 'on-time';
+                    attendanceList.append(`<li class="${late}">${name} - Time: ${info.time} | Date: ${info.date}</li>`);
+                }
+            }
+
+            // Listen for updates from the server
+            socket.on('update_attendance', function(data) {
+                const deadline = $('#deadline').val(); // Get the updated deadline time
+                updateAttendanceList(data, deadline);
+            });
+
+            // Event handler for sending attendance email
+            $('#send-email').click(function() {
+                $.post('/send_attendance', function(response) {
+                    alert(response.message);
+                }).fail(function(error) {
+                    alert(error.responseJSON.message);
+                });
+            });
+
+            // Event handler for exporting attendance
+            $('#export-attendance').click(function() {
+                $.post('/export_attendance', function(response) {
+                    alert(response.message);
+                }).fail(function(error) {
+                    alert(error.responseJSON.message);
+                });
+            });
+
+            // Search functionality
+            $('#search').on('input', function() {
+                const query = $(this).val().toLowerCase();
+                $('#attendance-list li').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(query) > -1);
+                });
+            });
+
+            // Update attendance list when deadline changes
+            $('#deadline').on('change', function() {
+                const newDeadline = $(this).val();
+                socket.emit('update_deadline', newDeadline); // Emit the new deadline to the server
+            });
+        </script>
+    </body>
+    </html>
