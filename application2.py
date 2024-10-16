@@ -16,8 +16,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Load the YOLOv8 model (trained model)
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with relative path
 model = YOLO(model_path)
-# Initialize webcam
-cap = cv2.VideoCapture(0)
+
+# Initialize webcam, check for available cameras
+def initialize_camera():
+    for i in range(10):  # Try camera indices from 0 to 9
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            print(f"Camera opened with index {i}")
+            return cap
+    print("No camera found.")
+    return None
+
+cap = initialize_camera()  # Call function to initialize the camera
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
@@ -66,9 +76,14 @@ def log_attendance(name, timestamp):
 
 # Generate video frames for real-time feed
 def generate_frames():
+    if not cap:  # Check if camera was initialized
+        print("No camera initialized")
+        return
+
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("Failed to read from camera")
             break
 
         results = model.predict(frame)
