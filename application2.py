@@ -51,7 +51,7 @@ def log_attendance(name, timestamp):
 
 # Generate video frames for real-time feed using imageio
 def generate_frames():
-    with imageio.get_reader("<video0>") as video:  # Use "<video0>" for the default webcam
+    with imageio.get_reader("<video0>") as video:  # Use "<video0>" for the default camera
         for frame in video:
             frame = np.array(frame)  # Convert to a NumPy array
             results = model.predict(frame)
