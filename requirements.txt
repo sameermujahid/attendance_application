@@ -6,3 +6,4 @@ ultralytics
 pandas
 sib-api-v3-sdk
 gunicorn
+python-dotenv
