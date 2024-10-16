@@ -1,11 +1,12 @@
 import os
+import cv2
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
+import threading
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,14 +49,20 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-# Video transformer class for processing video frames
-class VideoTransformer(VideoTransformerBase):
-    def __init__(self):
-        super().__init__()
+# Function to capture video frames
+def capture_video():
+    global recognized_names
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        st.error("No camera found or could not open the default camera.")
+        return
 
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr")
-        results = model.predict(img)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        results = model.predict(frame)
         names_in_frame = []
         for result in results:
             for box in result.boxes:
@@ -66,21 +73,25 @@ class VideoTransformer(VideoTransformerBase):
                 names_in_frame.append(name)
 
                 label = f"{name}: {conf:.2f}"
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # Log attendance for new names (only once)
         for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
             log_attendance(name, datetime.datetime.now())
 
-        return img
+        # Convert frame to RGB for Streamlit
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        st.image(frame_rgb, channels="RGB", use_column_width=True)
+
+    cap.release()
 
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
 
-# Start video feed with streamlit-webrtc
-webrtc_streamer(key="example", video_transformer_factory=VideoTransformer)
+# Start video feed in a separate thread
+threading.Thread(target=capture_video).start()
 
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
