@@ -6,12 +6,17 @@ from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import numpy as np
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
+
+# Initialize webcam
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    st.error("No camera found or could not open the default camera.")
+    st.stop()
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
@@ -52,12 +57,42 @@ def log_attendance(name, timestamp):
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
 
+# Generate video frames for real-time feed
+def generate_frames():
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break  # End the generator if there are no frames
+
+        results = model.predict(frame)
+        names_in_frame = []
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                conf = box.conf[0]
+                cls = int(box.cls[0])
+                name = model.names[cls]
+                names_in_frame.append(name)
+
+                label = f"{name}: {conf:.2f}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Log attendance for new names (only once)
+        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+            log_attendance(name, datetime.datetime.now())
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
+        yield frame
+
+
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
 
 # Start video feed
 frame_placeholder = st.empty()
+frame_generator = generate_frames()
 
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
@@ -86,39 +121,11 @@ with col2:
         else:
             st.error("No attendees to export.")
 
-# Main loop to capture frames and process them
-while True:
-    # Capture frame from camera using Streamlit
-    image = st.camera_input("Take a picture")
-
-    if image is not None:
-        # Convert the image to an OpenCV format
-        frame = np.array(image)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR for OpenCV
-
-        # Perform inference
-        results = model.predict(frame)
-        names_in_frame = []
-
-        # Draw boxes and labels
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = box.conf[0]
-                cls = int(box.cls[0])
-                name = model.names[cls]
-                names_in_frame.append(name)
-
-                label = f"{name}: {conf:.2f}"
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        # Log attendance for new names (only once)
-        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
-            log_attendance(name, datetime.datetime.now())
-
-        # Display the processed frame
-        frame_placeholder.image(frame, channels="BGR", use_column_width=True)
+# Run the Streamlit app with live updates
+try:
+    while True:
+        frame = next(frame_generator)
+        frame_placeholder.image(frame, channels="RGB", use_column_width=True)
 
         # Update the attendance list in the placeholder
         attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
@@ -128,5 +135,8 @@ while True:
         # Update attendance list display
         attendance_placeholder.dataframe(attendance_df)
 
-    # Allow for a small delay to control the loop
-    st.time.sleep(0.1)  # Adjust delay as needed for your frame processing rate
+except StopIteration:
+    st.error("Video stream ended unexpectedly.")
+finally:
+    # Ensure the video capture is released when done
+    cap.release()
