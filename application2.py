@@ -6,7 +6,6 @@ from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import threading
 from PIL import Image
 
 # Load the YOLOv8 model
@@ -23,9 +22,13 @@ configuration.api_key['api-key'] = api_key
 recognized_names = {}
 deadline = "09:00"  # Default deadline time
 
-# Initialize webcam capture in a separate thread
+# Initialize webcam
 FRAME_WINDOW = st.image([])  # Placeholder for displaying video frames
 cap = cv2.VideoCapture(0)
+
+if not cap.isOpened():
+    st.error("Unable to access the camera.")
+    st.stop()
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -54,42 +57,6 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-# Function to capture and process frames
-def capture_video():
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Failed to capture video.")
-            break
-        
-        # Process frame with YOLO model
-        results = model.predict(frame)
-        names_in_frame = []
-        
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = box.conf[0]
-                cls = int(box.cls[0])
-                name = model.names[cls]
-                names_in_frame.append(name)
-
-                label = f"{name}: {conf:.2f}"
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        # Log attendance for new names (only once)
-        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
-            log_attendance(name, datetime.datetime.now())
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-        img = Image.fromarray(frame)  # Convert to PIL image for Streamlit
-        FRAME_WINDOW.image(img)
-
-# Start video capture in a separate thread
-video_thread = threading.Thread(target=capture_video)
-video_thread.start()
-
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
@@ -97,6 +64,43 @@ st.write("## Live Attendance")
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
 attendance_placeholder = st.empty()
+
+# Capture video and process frames
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        st.error("Failed to capture video.")
+        break
+
+    # Process the frame with YOLO model
+    results = model.predict(frame)
+    names_in_frame = []
+    
+    for result in results:
+        for box in result.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            conf = box.conf[0]
+            cls = int(box.cls[0])
+            name = model.names[cls]
+            names_in_frame.append(name)
+
+            label = f"{name}: {conf:.2f}"
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # Log attendance for new names (only once)
+    for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+        log_attendance(name, datetime.datetime.now())
+
+    # Convert BGR to RGB for Streamlit display
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    img = Image.fromarray(frame)
+    
+    # Display the frame in the Streamlit app
+    FRAME_WINDOW.image(img)
+
+# Release the webcam when done
+cap.release()
 
 # Buttons for actions
 col1, col2 = st.columns(2)
@@ -121,14 +125,10 @@ with col2:
         else:
             st.error("No attendees to export.")
 
-# Update the attendance list in the placeholder
+# Update attendance list in placeholder
 attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
                    for name, info in recognized_names.items()]
 attendance_df = pd.DataFrame(attendance_data)
 
 # Update attendance list display
 attendance_placeholder.dataframe(attendance_df)
-
-# Release video capture when done
-video_thread.join()
-cap.release()
