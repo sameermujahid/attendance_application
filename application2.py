@@ -1,11 +1,11 @@
 import os
+import cv2
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import cv2
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,9 +17,10 @@ recognized_names = {}
 deadline = "09:00"  # Default deadline time
 
 # Brevo API Configuration
-api_key = 'your_api_key_here'
+api_key = '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'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
+
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -41,6 +42,7 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
+
 # Function to save recognized names to a log
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
@@ -48,70 +50,91 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
+
+# Generate video frames from an uploaded video file
+def generate_frames(video_file):
+    cap = cv2.VideoCapture(video_file)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break  # End the generator if there are no frames
+
+        results = model.predict(frame)
+        names_in_frame = []
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                conf = box.conf[0]
+                cls = int(box.cls[0])
+                name = model.names[cls]
+                names_in_frame.append(name)
+
+                label = f"{name}: {conf:.2f}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        # Log attendance for new names (only once)
+        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+            log_attendance(name, datetime.datetime.now())
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
+        yield frame
+
+    cap.release()  # Release video capture at the end
+
+
 # Streamlit application layout
 st.title("Attendance System")
-st.write("## Upload an Image for Attendance")
+st.write("## Video Attendance")
 
-# File uploader for image input
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# Video upload option
+video_file = st.file_uploader("Upload a video", type=["mp4", "mov", "avi"])
 
-if uploaded_file is not None:
-    # Read the uploaded image
-    image_bytes = uploaded_file.read()
-    file_bytes = np.frombuffer(image_bytes, np.uint8)
-    frame = cv2.imdecode(file_bytes, 1)
+# Start video feed if a video file is uploaded
+if video_file is not None:
+    frame_placeholder = st.empty()
+    frame_generator = generate_frames(video_file)
 
-    # Perform YOLO detection
-    results = model.predict(frame)
-    names_in_frame = []
-    for result in results:
-        for box in result.boxes:
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-            conf = box.conf[0]
-            cls = int(box.cls[0])
-            name = model.names[cls]
-            names_in_frame.append(name)
+    # Static attendance list heading and buttons
+    st.subheader("Attendance List")
+    attendance_placeholder = st.empty()
 
-            label = f"{name}: {conf:.2f}"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    # Buttons for actions
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Send Attendance Email", key="send_email"):
+            if recognized_names:
+                attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
+                                                   for name, info in recognized_names.items())
+                email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
+                send_brevo_notification("Attendance List", email_content)
+                st.success("Attendance list sent successfully!")
+            else:
+                st.error("No attendees to send.")
 
-    # Log attendance for new names (only once)
-    for name in set(names_in_frame):
-        log_attendance(name, datetime.datetime.now())
+    with col2:
+        if st.button("Export Attendance", key="export_attendance"):
+            if recognized_names:
+                filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
+                attendance_df = pd.DataFrame.from_records(recognized_names.values())
+                attendance_df.to_excel(filename, index=False)
+                st.success(f"Attendance list saved as {filename}.")
+            else:
+                st.error("No attendees to export.")
 
-    # Show the image with detections
-    st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB", caption="Detected Image")
+    # Run the Streamlit app with live updates
+    try:
+        while True:
+            frame = next(frame_generator)
+            frame_placeholder.image(frame, channels="RGB", use_column_width=True)
 
-# Static attendance list heading and buttons
-st.subheader("Attendance List")
-attendance_placeholder = st.empty()
+            # Update the attendance list in the placeholder
+            attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
+                               for name, info in recognized_names.items()]
+            attendance_df = pd.DataFrame(attendance_data)
 
-# Buttons for actions
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Send Attendance Email", key="send_email"):
-        if recognized_names:
-            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}" for name, info in recognized_names.items())
-            email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
-            send_brevo_notification("Attendance List", email_content)
-            st.success("Attendance list sent successfully!")
-        else:
-            st.error("No attendees to send.")
+            # Update attendance list display
+            attendance_placeholder.dataframe(attendance_df)
 
-with col2:
-    if st.button("Export Attendance", key="export_attendance"):
-        if recognized_names:
-            filename = f"attendance_{datetime.datetime.now().strftime('%Y-%m-%d')}.xlsx"
-            attendance_df = pd.DataFrame.from_records(recognized_names.values())
-            attendance_df.to_excel(filename, index=False)
-            st.success(f"Attendance list saved as {filename}.")
-        else:
-            st.error("No attendees to export.")
-
-# Update attendance list display
-attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]} for name, info in recognized_names.items()]
-attendance_df = pd.DataFrame(attendance_data)
-
-# Display the attendance DataFrame
-attendance_placeholder.dataframe(attendance_df)
+    except StopIteration:
+        st.error("Video stream ended unexpectedly.")
