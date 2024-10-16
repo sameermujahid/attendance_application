@@ -50,7 +50,7 @@ def log_attendance(name, timestamp):
 
 # Generate video frames for real-time feed
 def generate_frames():
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)  # Initialize video capture here
     if not cap.isOpened():
         st.error("No camera found or could not open the default camera.")
         return
