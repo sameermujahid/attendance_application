@@ -19,13 +19,15 @@ model = YOLO(model_path)
 
 # Initialize webcam, check for available cameras
 def initialize_camera():
-    for i in range(10):  # Try camera indices from 0 to 9
+    print("Initializing camera...")
+    for i in range(10):  # Check the first 10 indices
         cap = cv2.VideoCapture(i)
         if cap.isOpened():
-            print(f"Camera opened with index {i}")
+            print(f"Camera opened successfully at index {i}.")
             return cap
-    print("No camera found.")
-    return None
+        else:
+            print(f"Failed to open camera at index {i}.")
+    raise Exception("No camera found or could not open any camera.")
 
 cap = initialize_camera()  # Call function to initialize the camera
 
