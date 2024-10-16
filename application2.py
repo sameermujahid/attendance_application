@@ -51,29 +51,32 @@ def log_attendance(name, timestamp):
 
 # Generate video frames for real-time feed using imageio
 def generate_frames():
-    with imageio.get_reader("<video0>") as video:  # Use "<video0>" for the default camera
-        for frame in video:
-            frame = np.array(frame)  # Convert to a NumPy array
-            results = model.predict(frame)
-            names_in_frame = []
-            for result in results:
-                for box in result.boxes:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    conf = box.conf[0]
-                    cls = int(box.cls[0])
-                    name = model.names[cls]
-                    names_in_frame.append(name)
+    video = imageio.get_reader("<video0>")  # Replace "<video0>" with the correct video input for your environment
+    for frame in video:
+        frame = np.array(frame)  # Convert to a NumPy array
 
-                    label = f"{name}: {conf:.2f}"
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # YOLO model prediction on each frame
+        results = model.predict(frame)
+        names_in_frame = []
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                conf = box.conf[0]
+                cls = int(box.cls[0])
+                name = model.names[cls]
+                names_in_frame.append(name)
 
-            # Log attendance for new names (only once)
-            for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
-                log_attendance(name, datetime.datetime.now())
+                # Draw rectangle and label on frame
+                label = f"{name}: {conf:.2f}"
+                frame = cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                frame = cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-            yield frame
+        # Log attendance for new names (only once)
+        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+            log_attendance(name, datetime.datetime.now())
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
+        yield frame
 
 # Streamlit application layout
 st.title("Attendance System")
@@ -127,5 +130,5 @@ try:
 except StopIteration:
     st.error("Video stream ended unexpectedly.")
 finally:
-    # Ensure the video capture is released when done
-    cap.release()
+    # Release any resources if necessary
+    pass
