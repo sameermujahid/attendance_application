@@ -8,3 +8,4 @@ sib-api-v3-sdk
 gunicorn
 python-dotenv
 imageio
+streamlit_webrtc
