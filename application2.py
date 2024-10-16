@@ -12,15 +12,40 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
 
-# Brevo API Configuration
-api_key = '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'
-configuration = sib_api_v3_sdk.Configuration()
-configuration.api_key['api-key'] = api_key
+# Function to get available cameras
+def get_camera_indices():
+    indices = []
+    for i in range(5):  # Check first 5 camera indices
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            indices.append(i)
+            cap.release()
+    return indices
+
+# Get available camera indices
+camera_indices = get_camera_indices()
+
+# Streamlit application layout
+st.title("Attendance System")
+st.write("## Live Attendance")
+
+# Dropdown to select camera
+selected_camera = st.selectbox("Select Camera", camera_indices)
+
+# Initialize webcam
+cap = cv2.VideoCapture(selected_camera)
+if not cap.isOpened():
+    st.error("No camera found or could not open the selected camera.")
+    st.stop()
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
 deadline = "09:00"  # Default deadline time
 
+# Brevo API Configuration
+api_key = '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'
+configuration = sib_api_v3_sdk.Configuration()
+configuration.api_key['api-key'] = api_key
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -42,7 +67,6 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-
 # Function to save recognized names to a log
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
@@ -50,14 +74,8 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-
 # Generate video frames for real-time feed
-def generate_frames(camera_index):
-    cap = cv2.VideoCapture(camera_index)
-    if not cap.isOpened():
-        st.error("No camera found or could not open the selected camera.")
-        return
-
+def generate_frames():
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -84,20 +102,9 @@ def generate_frames(camera_index):
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
         yield frame
 
-    cap.release()  # Ensure camera is released
-
-
-# Streamlit application layout
-st.title("Attendance System")
-st.write("## Live Attendance")
-
-# Dropdown for selecting camera
-cameras = [0, 1, 2]  # List your camera indices here
-camera_index = st.selectbox("Select Camera", cameras)
-
 # Start video feed
 frame_placeholder = st.empty()
-frame_generator = generate_frames(camera_index)
+frame_generator = generate_frames()
 
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
@@ -144,5 +151,4 @@ except StopIteration:
     st.error("Video stream ended unexpectedly.")
 finally:
     # Ensure the video capture is released when done
-    if 'cap' in locals():
-        cap.release()
+    cap.release()
