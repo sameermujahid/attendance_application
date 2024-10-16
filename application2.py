@@ -6,7 +6,6 @@ from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +17,7 @@ recognized_names = {}
 deadline = "09:00"  # Default deadline time
 
 # Brevo API Configuration
-api_key = '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'
+api_key = 'your_api_key_here'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
 
@@ -42,25 +41,37 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-# Function to save recognized names to a log
+# Function to log attendance
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
     formatted_date = timestamp.strftime("%d-%m-%Y")
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-# Define a video transformer class
-class VideoTransformer(VideoTransformerBase):
-    def __init__(self):
-        super().__init__()
+# Streamlit application layout
+st.title("Attendance System")
+st.write("## Live Attendance")
 
-    def transform(self, frame):
-        # Convert the frame to a format suitable for OpenCV
-        img = frame.to_ndarray(format="bgr")
+# Start video feed using OpenCV
+if st.button("Start Webcam"):
+    cap = cv2.VideoCapture(0)
 
-        # Perform object detection
-        results = model.predict(img)
+    if not cap.isOpened():
+        st.error("No camera found or could not open the default camera.")
+        st.stop()
+
+    frame_placeholder = st.empty()
+
+    # Process video feed
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Failed to capture frame.")
+            break
+
+        results = model.predict(frame)
         names_in_frame = []
+        
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -70,25 +81,30 @@ class VideoTransformer(VideoTransformerBase):
                 names_in_frame.append(name)
 
                 label = f"{name}: {conf:.2f}"
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # Log attendance for new names (only once)
-        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+        for name in set(names_in_frame):
             log_attendance(name, datetime.datetime.now())
 
-        return img
+        # Convert BGR to RGB for Streamlit display
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_placeholder.image(frame_rgb, channels="RGB", use_column_width=True)
 
-# Streamlit application layout
-st.title("Attendance System")
-st.write("## Live Attendance")
+        # Update attendance data
+        attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
+                           for name, info in recognized_names.items()]
+        attendance_df = pd.DataFrame(attendance_data)
 
-# Start video feed using streamlit-webrtc
-webrtc_streamer(key="example", video_processor_factory=VideoTransformer)
+        # Display attendance list
+        st.subheader("Attendance List")
+        st.dataframe(attendance_df)
 
-# Static attendance list heading and buttons
-st.subheader("Attendance List")
-attendance_placeholder = st.empty()
+        # Break the loop if the user stops the webcam
+        if st.button("Stop Webcam"):
+            cap.release()
+            break
 
 # Buttons for actions
 col1, col2 = st.columns(2)
@@ -112,11 +128,3 @@ with col2:
             st.success(f"Attendance list saved as {filename}.")
         else:
             st.error("No attendees to export.")
-
-# Update attendance list display
-attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
-                   for name, info in recognized_names.items()]
-attendance_df = pd.DataFrame(attendance_data)
-
-# Display the attendance list in a dataframe
-attendance_placeholder.dataframe(attendance_df)
