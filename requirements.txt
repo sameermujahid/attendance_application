@@ -1,11 +1,7 @@
-Flask
-Flask-SocketIO
-opencv-python-headless
-torch
-ultralytics
+streamlit
+opencv-python
 pandas
+ultralytics
 sib-api-v3-sdk
-gunicorn
-python-dotenv
-imageio
-streamlit_webrtc
+streamlit-webrtc
+numpy
