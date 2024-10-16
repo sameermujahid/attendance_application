@@ -3,20 +3,33 @@ import cv2
 import torch
 import pandas as pd
 from flask import Flask, render_template, Response, request, jsonify
-from flask_socketio import SocketIO
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
 
 app = Flask(__name__)
-socketio = SocketIO(app)  # Initialize SocketIO
 
 # Load the YOLOv8 model (trained model)
-model = YOLO('C:\\Users\\samee\\PycharmProjects\\webcamproject\\best.pt')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Initialize webcam
-cap = cv2.VideoCapture(0)
+# Load the YOLOv8 model (trained model)
+model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with relative path
+model = YOLO(model_path)
+
+# Initialize webcam, check for available cameras
+def initialize_camera():
+    print("Initializing camera...")
+    for i in range(10):  # Check the first 10 indices
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            print(f"Camera opened successfully at index {i}.")
+            return cap
+        else:
+            print(f"Failed to open camera at index {i}.")
+    raise Exception("No camera found or could not open any camera.")
+
+cap = initialize_camera()  # Call function to initialize the camera
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
@@ -28,7 +41,6 @@ deadline = "09:00"  # Default deadline time
 api_key = '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'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
-
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -51,7 +63,6 @@ def send_brevo_notification(subject, content):
     except ApiException as e:
         print(f"Error sending email: {e}")
 
-
 # Function to save recognized names to a log file
 def log_attendance(name, timestamp):
     formatted_time = timestamp.strftime("%H:%M:%S")
@@ -64,17 +75,17 @@ def log_attendance(name, timestamp):
         # Update the date and time if name already exists
         recognized_names[name]["time"] = formatted_time
         recognized_names[name]["date"] = formatted_date
-        # Keep the late status unchanged
-
-    socketio.emit('update_attendance', recognized_names)  # Emit the new attendance list to all clients
-
 
 # Generate video frames for real-time feed
 def generate_frames():
-    global recognized_names
+    if not cap:  # Check if camera was initialized
+        print("No camera initialized")
+        return
+
     while True:
         ret, frame = cap.read()
         if not ret:
+            print("Failed to read from camera")
             break
 
         results = model.predict(frame)
@@ -104,30 +115,26 @@ def generate_frames():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-
 # Route to show video feed
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 
 # Route to show attendance and the send button
 @app.route('/')
 def index():
     return render_template('index2.html', attendance=recognized_names, deadline=deadline)
 
-
 # API to handle sending attendance email
 @app.route('/send_attendance', methods=['POST'])
 def send_attendance():
     if recognized_names:
         attendance_list = "<br>".join(f"{name} time: {info['time']} date: {info['date']}"
-                                      for name, info in recognized_names.items())
+                                       for name, info in recognized_names.items())
         email_content = f"<h1>Attendance List</h1><ul>{attendance_list}</ul>"
         send_brevo_notification("Attendance List", email_content)
         return jsonify({"status": "success", "message": "Attendance list sent successfully!"}), 200
     return jsonify({"status": "error", "message": "No attendees to send."}), 400
-
 
 # API to export attendance to Excel
 @app.route('/export_attendance', methods=['POST'])
@@ -148,7 +155,11 @@ def export_attendance():
 
     return jsonify({"status": "error", "message": "No attendees to export."}), 400
 
+# API to fetch the latest attendance list
+@app.route('/get_attendance', methods=['GET'])
+def get_attendance():
+    return jsonify(recognized_names)
 
-# Run the Flask app with SocketIO
+# Run the Flask app
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    app.run(debug=True)
