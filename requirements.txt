@@ -5,3 +5,4 @@ ultralytics
 sib-api-v3-sdk
 streamlit-webrtc
 numpy
+imageio
