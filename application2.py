@@ -1,26 +1,31 @@
 import os
+import cv2
 import pandas as pd
 import streamlit as st
 from ultralytics import YOLO
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import datetime
-import imageio
-import numpy as np
+import threading
+from PIL import Image
 
 # Load the YOLOv8 model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'best.pt')  # Replace with your model path
 model = YOLO(model_path)
 
-# Dictionary to keep track of recognized names and their timestamps
-recognized_names = {}
-deadline = "09:00"  # Default deadline time
-
 # Brevo API Configuration
 api_key = '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'
 configuration = sib_api_v3_sdk.Configuration()
 configuration.api_key['api-key'] = api_key
+
+# Dictionary to keep track of recognized names and their timestamps
+recognized_names = {}
+deadline = "09:00"  # Default deadline time
+
+# Initialize webcam capture in a separate thread
+FRAME_WINDOW = st.image([])  # Placeholder for displaying video frames
+cap = cv2.VideoCapture(0)
 
 # Function to send email notification using Brevo
 def send_brevo_notification(subject, content):
@@ -49,15 +54,18 @@ def log_attendance(name, timestamp):
     if name not in recognized_names:
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
-# Generate video frames for real-time feed using imageio
-def generate_frames():
-    video = imageio.get_reader("<video0>")  # Replace "<video0>" with the correct video input for your environment
-    for frame in video:
-        frame = np.array(frame)  # Convert to a NumPy array
-
-        # YOLO model prediction on each frame
+# Function to capture and process frames
+def capture_video():
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Failed to capture video.")
+            break
+        
+        # Process frame with YOLO model
         results = model.predict(frame)
         names_in_frame = []
+        
         for result in results:
             for box in result.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -66,25 +74,25 @@ def generate_frames():
                 name = model.names[cls]
                 names_in_frame.append(name)
 
-                # Draw rectangle and label on frame
                 label = f"{name}: {conf:.2f}"
-                frame = cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                frame = cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
         # Log attendance for new names (only once)
         for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
             log_attendance(name, datetime.datetime.now())
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-        yield frame
+        img = Image.fromarray(frame)  # Convert to PIL image for Streamlit
+        FRAME_WINDOW.image(img)
+
+# Start video capture in a separate thread
+video_thread = threading.Thread(target=capture_video)
+video_thread.start()
 
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
-
-# Start video feed
-frame_placeholder = st.empty()
-frame_generator = generate_frames()
 
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
@@ -95,7 +103,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("Send Attendance Email", key="send_email"):
         if recognized_names:
-            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
+            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']} | Late: {info['late']}"
                                                for name, info in recognized_names.items())
             email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
             send_brevo_notification("Attendance List", email_content)
@@ -113,22 +121,14 @@ with col2:
         else:
             st.error("No attendees to export.")
 
-# Run the Streamlit app with live updates
-try:
-    while True:
-        frame = next(frame_generator)
-        frame_placeholder.image(frame, channels="RGB", use_column_width=True)
+# Update the attendance list in the placeholder
+attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
+                   for name, info in recognized_names.items()]
+attendance_df = pd.DataFrame(attendance_data)
 
-        # Update the attendance list in the placeholder
-        attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
-                           for name, info in recognized_names.items()]
-        attendance_df = pd.DataFrame(attendance_data)
+# Update attendance list display
+attendance_placeholder.dataframe(attendance_df)
 
-        # Update attendance list display
-        attendance_placeholder.dataframe(attendance_df)
-
-except StopIteration:
-    st.error("Video stream ended unexpectedly.")
-finally:
-    # Release any resources if necessary
-    pass
+# Release video capture when done
+video_thread.join()
+cap.release()
