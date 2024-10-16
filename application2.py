@@ -14,9 +14,13 @@ model = YOLO(model_path)
 
 # Initialize webcam
 cap = cv2.VideoCapture(0)
+
 if not cap.isOpened():
-    st.error("No camera found or could not open the default camera.")
-    st.stop()
+    print("No camera found or could not open the default camera.")
+else:
+    print("Camera is working.")
+    cap.release()
+
 
 # Dictionary to keep track of recognized names and their timestamps
 recognized_names = {}
