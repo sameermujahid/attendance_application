@@ -14,6 +14,7 @@ model = YOLO(model_path)
 
 # Initialize webcam
 cap = cv2.VideoCapture(0)
+
 if not cap.isOpened():
     st.error("No camera found or could not open the default camera.")
     st.stop()
@@ -57,42 +58,12 @@ def log_attendance(name, timestamp):
         recognized_names[name] = {"time": formatted_time, "date": formatted_date, "late": formatted_time > deadline}
 
 
-# Generate video frames for real-time feed
-def generate_frames():
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break  # End the generator if there are no frames
-
-        results = model.predict(frame)
-        names_in_frame = []
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = box.conf[0]
-                cls = int(box.cls[0])
-                name = model.names[cls]
-                names_in_frame.append(name)
-
-                label = f"{name}: {conf:.2f}"
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-        # Log attendance for new names (only once)
-        for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
-            log_attendance(name, datetime.datetime.now())
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
-        yield frame
-
-
 # Streamlit application layout
 st.title("Attendance System")
 st.write("## Live Attendance")
 
 # Start video feed
 frame_placeholder = st.empty()
-frame_generator = generate_frames()
 
 # Static attendance list heading and buttons
 st.subheader("Attendance List")
@@ -103,8 +74,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("Send Attendance Email", key="send_email"):
         if recognized_names:
-            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}"
-                                               for name, info in recognized_names.items())
+            attendance_list_html = "<br>".join(f"{name} - Time: {info['time']} | Date: {info['date']}" for name, info in recognized_names.items())
             email_content = f"<h1>Attendance List</h1><ul>{attendance_list_html}</ul>"
             send_brevo_notification("Attendance List", email_content)
             st.success("Attendance list sent successfully!")
@@ -121,22 +91,40 @@ with col2:
         else:
             st.error("No attendees to export.")
 
-# Run the Streamlit app with live updates
-try:
-    while True:
-        frame = next(frame_generator)
-        frame_placeholder.image(frame, channels="RGB", use_column_width=True)
+# Generate video frames for real-time feed
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        st.error("Error reading frame from camera.")
+        break  # Exit if the frame cannot be read
 
-        # Update the attendance list in the placeholder
-        attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]}
-                           for name, info in recognized_names.items()]
-        attendance_df = pd.DataFrame(attendance_data)
+    results = model.predict(frame)
+    names_in_frame = []
+    for result in results:
+        for box in result.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            conf = box.conf[0]
+            cls = int(box.cls[0])
+            name = model.names[cls]
+            names_in_frame.append(name)
 
-        # Update attendance list display
-        attendance_placeholder.dataframe(attendance_df)
+            label = f"{name}: {conf:.2f}"
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-except StopIteration:
-    st.error("Video stream ended unexpectedly.")
-finally:
-    # Ensure the video capture is released when done
-    cap.release()
+    # Log attendance for new names (only once)
+    for name in set(names_in_frame):  # Use set to avoid duplicates in this frame
+        log_attendance(name, datetime.datetime.now())
+
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for Streamlit display
+    frame_placeholder.image(frame, channels="RGB", use_column_width=True)
+
+    # Update the attendance list in the placeholder
+    attendance_data = [{"Name": name, "Time": info["time"], "Date": info["date"], "Late": info["late"]} for name, info in recognized_names.items()]
+    attendance_df = pd.DataFrame(attendance_data)
+
+    # Update attendance list display
+    attendance_placeholder.dataframe(attendance_df)
+
+# Release the video capture
+cap.release()
