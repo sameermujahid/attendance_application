@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AttendX — Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #f5f0e8;
+      --bg2:       #ede7da;
+      --surface:   #faf7f2;
+      --surface2:  #000000;
+      --border:    rgba(160,140,110,0.18);
+      --border2:   rgba(160,140,110,0.30);
+      --accent:    #b5763a;
+      --accent-lt: #ead4b0;
+      --green:     #4a7c59;
+      --green-lt:  #d4ead9;
+      --red:       #b04a3a;
+      --red-lt:    #f0d4cf;
+      --text:      #000000;
+      --text2:     #000000;
+      --muted:     #ffffff;
+      --ff:        'DM Sans', sans-serif;
+      --serif:     'Lora', serif;
+      --mono:      'DM Mono', monospace;
+      --radius:    14px;
+      --shadow-sm: 0 1px 3px rgba(100,80,40,0.06), 0 2px 8px rgba(100,80,40,0.04);
+      --shadow:    0 2px 8px rgba(100,80,40,0.07), 0 8px 28px rgba(100,80,40,0.06);
+      --shadow-lg: 0 4px 16px rgba(100,80,40,0.09), 0 16px 48px rgba(100,80,40,0.07);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Google Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle warm noise */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ── NAV ─────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 36px; height: 60px;
+      background: rgba(245,240,232,0.94);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .nav-brand {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .nav-brand em { font-style: italic; color: var(--accent); }
+
+    .nav-link {
+      display: flex; align-items: center; gap: 7px;
+      padding: 8px 20px;
+      background: var(--text);
+      border-radius: 999px;
+      color: var(--bg);
+      font-size: 0.8rem; font-weight: 500;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-link:hover {
+      background: var(--accent);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(181,118,58,0.28);
+    }
+
+    /* ── CLOCK BAR ───────────────────────────────────────── */
+    .clock-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 36px;
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: 0.76rem;
+      color: var(--muted); position: relative; z-index: 1;
+    }
+
+    #clock {
+      color: var(--text2); font-size: 0.86rem;
+      font-weight: 400; letter-spacing: 0.02em;
+    }
+
+    .deadline-tag {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      padding: 2px 10px;
+      color: var(--muted);
+    }
+
+    /* ── MAIN GRID ───────────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 24px 36px;
+      max-width: 1360px;
+      margin: 0 auto;
+      position: relative; z-index: 1;
+    }
+
+    /* ── PANELS ──────────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.3s ease;
+    }
+    .panel:hover { box-shadow: var(--shadow-lg); }
+
+    .panel-header {
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface2);
+    }
+
+    .panel-title {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 0.76rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── VIDEO ───────────────────────────────────────────── */
+    .video-container {
+  position: relative;
+  background: var(--bg2);
+  aspect-ratio: 16/9;
+  width: 100%;
+  overflow: hidden;
+}
+
+#video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+    .video-container img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .no-feed {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100%; gap: 10px;
+      color: var(--muted); font-size: 0.8rem;
+    }
+    .feed-icon {
+      width: 44px; height: 44px;
+      border: 1.5px solid var(--border2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface);
+    }
+
+    /* ── CAMERA SELECTOR ─────────────────────────────────── */
+    .cam-select-bar {
+      padding: 11px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 7px; flex-wrap: wrap;
+      background: var(--bg);
+    }
+
+    .cam-btn {
+      padding: 5px 13px;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text2);
+      border-radius: 999px;
+      font-family: var(--mono); font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .cam-btn:hover {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(181,118,58,0.06);
+    }
+    .cam-btn.active {
+      background: var(--accent); border-color: var(--accent);
+      color: white;
+      box-shadow: 0 2px 8px rgba(181,118,58,0.2);
+    }
+
+    /* ── ACTIONS ─────────────────────────────────────────── */
+    .actions-bar {
+      padding: 12px 18px;
+      display: flex; gap: 10px;
+    }
+
+    .btn {
+      flex: 1; padding: 10px 14px;
+      border: none; border-radius: 999px;
+       font-family: 'Google Sans', sans-serif;
+ font-size: 0.8rem; font-weight: 500;
+      cursor: pointer; transition: all 0.22s ease;
+    }
+    .btn-primary {
+      background: var(--text); color: var(--bg);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-primary:hover {
+      background: var(--accent); transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(181,118,58,0.28);
+    }
+    .btn-outline {
+      background: transparent; color: var(--text2);
+      border: 1px solid var(--border2);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent); color: var(--accent);
+      background: rgba(181,118,58,0.05);
+    }
+
+    /* ── ATTENDANCE LIST ─────────────────────────────────── */
+    .attendance-scroll {
+      max-height: 500px; overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+
+    .attendance-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeUp 0.4s cubic-bezier(0.22,1,0.36,1);
+      transition: background 0.15s;
+    }
+    .attendance-item:hover { background: var(--bg2); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 600; flex-shrink: 0;
+      color: var(--accent);       font-family: 'Google Sans', sans-serif;
+
+    }
+
+    .att-info { flex: 1; min-width: 0; }
+    .att-name {
+      font-size: 0.87rem; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .att-time {
+      font-family: var(--mono); font-size: 0.67rem;
+      color: var(--muted); margin-top: 2px;
+    }
+
+    .badge {
+      padding: 3px 9px; border-radius: 999px;
+      font-size: 0.64rem; font-weight: 500; letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-present { background: var(--green-lt); color: var(--green); }
+    .badge-late    { background: var(--red-lt);   color: var(--red); }
+
+    .empty-state {
+      padding: 52px 20px; text-align: center;
+      color: var(--muted); font-size: 0.8rem; line-height: 1.8;
+    }
+    .empty-state-dot {
+      width: 7px; height: 7px;
+      background: var(--accent-lt); border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%,100% { transform: scale(1); opacity: 0.5; }
+      50%      { transform: scale(1.9); opacity: 1; }
+    }
+
+    /* ── LIVE DOT ─────────────────────────────────────────── */
+    .live-dot {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 0.67rem;
+      color: var(--muted); letter-spacing: 0.05em;
+    }
+    .live-dot::before {
+      content: ''; width: 6px; height: 6px;
+      background: var(--muted); border-radius: 50%;
+    }
+    .live-dot.live { color: var(--green); }
+    .live-dot.live::before {
+      background: var(--green);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.15; }
+    }
+
+    /* ── COUNT BADGE ─────────────────────────────────────── */
+    .count-badge {
+      font-family: var(--mono); font-size: 0.67rem;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 999px; padding: 2px 10px; color: var(--text2);
+    }
+
+    /* ── TOAST ───────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 12px 18px;
+      font-size: 0.8rem; z-index: 9998;
+      transform: translateY(70px); opacity: 0;
+      transition: all 0.38s cubic-bezier(0.34,1.56,0.64,1);
+      max-width: 300px;
+      box-shadow: var(--shadow-lg); color: var(--text2);
+    }
+    #toast.show  { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 3px solid var(--green); }
+    #toast.error   { border-left: 3px solid var(--red); }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-brand">Attend<em>X</em></div>
+    <a href="/enroll" class="nav-link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+        <line x1="18" y1="8" x2="23" y2="13"/>
+        <line x1="23" y1="8" x2="18" y2="13"/>
+      </svg>
+      Enroll Face
+    </a>
+  </nav>
+
+  <div class="clock-bar">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+    <span id="clock">--:--:-- --</span>
+    <span class="deadline-tag">Deadline · 12:00 PM</span>
+  </div>
+
+  <div class="main">
+    <!-- LEFT: Camera -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Live Feed</span>
+          <span class="live-dot" id="liveIndicator">Waiting</span>
+        </div>
+        <div class="video-container" id="videoContainer">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+          </div>
+        <div class="cam-select-bar" id="camButtons">
+          <button class="cam-btn" onclick="startFeed('0')">Webcam 0</button>
+          <button class="cam-btn" onclick="startFeed('1')">Webcam 1</button>
+          <button class="cam-btn" onclick="startFeed('2')">Webcam 2</button>
+          <button class="cam-btn" onclick="startFeed('3')">Webcam 3</button>
+          <button class="cam-btn" onclick="startFeed('4')">Webcam 4</button>
+          <button class="cam-btn" onclick="startFeed('5')">Webcam 5</button>
+          <button class="cam-btn" onclick="startFeed('ip')">IP Webcam</button>
+        </div>
+        <div class="actions-bar">
+          <button class="btn btn-primary" onclick="sendAttendance()">↑ Send Email Report</button>
+          <button class="btn btn-outline" onclick="exportAttendance()">↓ Export XLSX</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Attendance -->
+    <div class="panel" style="display:flex; flex-direction:column;">
+      <div class="panel-header">
+        <span class="panel-title">Attendance</span>
+        <span class="count-badge" id="countBadge">0</span>
+      </div>
+      <div class="attendance-scroll" id="attendanceList">
+        <div class="empty-state">
+          <div class="empty-state-dot"></div>
+          Waiting for attendance…
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', {
+        hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    let activeCam = null;
+    async function startFeed(camId) {
+  document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const ind = document.getElementById('liveIndicator');
+  ind.textContent = 'LIVE';
+  ind.classList.add('live');
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: camId !== "ip" ? camId : undefined }
+    });
+
+    video.srcObject = stream;
+  } catch (err) {
+    console.error(err);
+    showToast("Camera access failed", "error");
+  }
+}
+    let knownNames = new Set();
+
+    function fetchAttendance() {
+      fetch('/get_attendance')
+        .then(r => r.json())
+        .then(data => {
+          const list  = document.getElementById('attendanceList');
+          const names = Object.keys(data);
+          document.getElementById('countBadge').textContent = names.length;
+
+          if (names.length === 0) {
+            list.innerHTML = `<div class="empty-state"><div class="empty-state-dot"></div>Waiting for attendance…</div>`;
+            return;
+          }
+
+          names.forEach(name => {
+            if (!knownNames.has(name)) {
+              knownNames.add(name);
+              const info = data[name];
+              const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              const item = document.createElement('div');
+              item.className = 'attendance-item';
+              item.innerHTML = `
+                <div class="avatar">${initials}</div>
+                <div class="att-info">
+                  <div class="att-name">${name}</div>
+                  <div class="att-time">${info.date} · ${info.time}</div>
+                </div>
+                <span class="badge ${info.late ? 'badge-late' : 'badge-present'}">
+                  ${info.late ? 'Late' : 'On time'}
+                </span>`;
+              if (list.querySelector('.empty-state')) list.innerHTML = '';
+              list.appendChild(item);
+            }
+          });
+        });
+    }
+
+    setInterval(fetchAttendance, 2000);
+    fetchAttendance();
+
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `show ${type}`;
+      clearTimeout(t._tid);
+      t._tid = setTimeout(() => { t.className = ''; }, 3200);
+    }
+
+    function sendAttendance() {
+  const email = prompt("Enter recipient email:");
+
+  if (!email) return;
+
+  fetch('/send_attendance', {
+    method: 'POST',
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email })
+  })
+  .then(r => r.json())
+  .then(d => showToast(d.message, d.message.includes('No') || d.message.includes('Failed') ? 'error' : 'success'))
+  .catch(() => showToast('Request failed', 'error'));
+}
+    function exportAttendance() {
+      fetch('/export_attendance', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => showToast(d.message, d.message.includes('No') ? 'error' : 'success'))
+        .catch(() => showToast('Request failed', 'error'));
+    }
+    const video = document.getElementById("video");
+const canvas = document.getElementById("overlay");
+const ctx = canvas.getContext("2d");
+
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+}
+function captureAndSend() {
+  if (!video.videoWidth) return;
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const temp = document.createElement("canvas");
+  temp.width = video.videoWidth;
+  temp.height = video.videoHeight;
+  const tctx = temp.getContext("2d");
+  tctx.drawImage(video, 0, 0);
+
+  const frame = temp.toDataURL("image/jpeg");
+
+  fetch("/recognize_frame", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ frame })
+  })
+  .then(res => res.json())
+  .then(data => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    data.faces.forEach(face => {
+      ctx.strokeStyle = face.name !== "Unknown" ? "lime" : "gray";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(face.x1, face.y1,
+                     face.x2 - face.x1,
+                     face.y2 - face.y1);
+
+      ctx.fillStyle = "lime";
+      ctx.font = "16px Arial";
+      ctx.fillText(face.name, face.x1, face.y1 - 5);
+    });
+  });
+}
+setInterval(captureAndSend, 800);
+startCamera();
+
+  </script>
+</body>
+</html>

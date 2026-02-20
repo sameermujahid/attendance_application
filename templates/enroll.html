@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Enroll Face — AttendX</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #f5f0e8;
+      --bg2:       #ede7da;
+      --surface:   #faf7f2;
+      --surface2:  #f0ebe1;
+      --border:    rgba(160,140,110,0.18);
+      --border2:   rgba(160,140,110,0.30);
+      --accent:    #b5763a;
+      --accent-lt: #ead4b0;
+      --green:     #4a7c59;
+      --green-lt:  #d4ead9;
+      --red:       #b04a3a;
+      --red-lt:    #f0d4cf;
+      --text:      #2c2417;
+      --text2:     rgb(0, 0, 0);
+      --muted:     #ffffff;
+      --ff:        'DM Sans', sans-serif;
+      --serif:     'Lora', serif;
+      --mono:      'DM Mono', monospace;
+      --radius:    14px;
+      --shadow-sm: 0 1px 3px rgba(100,80,40,0.06), 0 2px 8px rgba(100,80,40,0.04);
+      --shadow:    0 2px 8px rgba(100,80,40,0.07), 0 8px 28px rgba(100,80,40,0.06);
+      --shadow-lg: 0 4px 16px rgba(100,80,40,0.09), 0 16px 48px rgba(100,80,40,0.07);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Google Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 9999;
+    }
+
+    /* ── NAV ──────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 36px; height: 60px;
+      background: rgba(245,240,232,0.94);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .nav-brand {
+        font-family: 'Google Sans', sans-serif;
+        font-size: 1.15rem; font-weight: 600;
+      color: var(--text); letter-spacing: -0.01em;
+    }
+    .nav-brand em { font-style: italic; color: var(--accent); }
+
+    .nav-back {
+      display: flex; align-items: center; gap: 7px;
+      color: var(--text2); text-decoration: none;
+      font-size: 0.8rem; font-weight: 500;
+      padding: 7px 16px;
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      background: var(--surface);
+      transition: all 0.22s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .nav-back:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(181,118,58,0.05);
+    }
+
+    /* ── PAGE GRID ────────────────────────────────────────────── */
+    .page {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 28px;
+      padding: 36px 48px;
+      max-width: 1180px;
+      margin: 0 auto;
+      width: 100%;
+      position: relative; z-index: 1;
+      align-items: start;
+    }
+
+    /* ── CAMERA SECTION ───────────────────────────────────────── */
+    .camera-section {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+    }
+
+    .page-title {
+        font-family: 'Google Sans', sans-serif;
+        font-size: 1.85rem; font-weight: 600;
+      letter-spacing: -0.02em; text-align: center;
+      color: var(--text); line-height: 1.2;
+    }
+    .page-title em { font-style: italic; color: var(--accent); }
+
+    .page-subtitle {
+      color: var(--muted); font-size: 0.84rem;
+      text-align: center; max-width: 340px;
+      line-height: 1.7; font-weight: 400;
+      margin: 2px auto 0;
+    }
+
+    /* ── FACE FRAME ───────────────────────────────────────────── */
+    .face-frame-wrap {
+      position: relative;
+      width: 320px; height: 380px;
+      border-radius: 20px; overflow: hidden;
+      background: var(--bg2);
+      box-shadow: var(--shadow-lg), 0 0 0 1px var(--border2);
+    }
+
+    #enrollVideo {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      display: block;
+    }
+
+    /* SVG overlay */
+    .face-svg-overlay {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      width: 100%; height: 100%;
+    }
+
+    /* Scan line */
+    .scan-line-el {
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .scanning .scan-line-el {
+      opacity: 1;
+      animation: scanMove 1.4s ease-in-out infinite;
+    }
+    @keyframes scanMove {
+      0%   { transform: translateY(-105px); }
+      100% { transform: translateY(105px); }
+    }
+
+    /* Oval ring */
+    .oval-ring {
+      fill: none;
+      stroke: rgba(44,36,23,0.35);
+      stroke-width: 2;
+      transition: stroke 0.4s, filter 0.4s;
+    }
+    .scanning .oval-ring {
+      stroke: var(--accent);
+      filter: drop-shadow(0 0 5px rgba(181,118,58,0.5));
+    }
+    .done-state .oval-ring {
+      stroke: var(--green);
+      filter: drop-shadow(0 0 6px rgba(74,124,89,0.5));
+    }
+
+    /* Progress arc */
+    .oval-progress {
+      fill: none; stroke: var(--accent); stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 785;
+      stroke-dashoffset: 785;
+      transform-origin: 160px 190px;
+      transform: rotate(-90deg);
+      transition: stroke-dashoffset 0.08s linear;
+    }
+    .done-state .oval-progress { stroke: var(--green); }
+
+    /* Corner brackets */
+    .bracket {
+      fill: none; stroke: rgba(44,36,23,0.25);
+      stroke-width: 2; stroke-linecap: round;
+      transition: stroke 0.4s;
+    }
+    .scanning .bracket  { stroke: var(--accent); }
+    .done-state .bracket { stroke: var(--green); }
+
+    /* Status label */
+    .face-status {
+      position: absolute; bottom: 16px; left: 0; right: 0;
+      text-align: center; font-size: 0.76rem; font-weight: 500;
+      color: var(--text2); letter-spacing: 0.03em;
+      background: rgba(245,240,232,0.82);
+      backdrop-filter: blur(8px);
+      margin: 0 20px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border2);
+      pointer-events: none;
+      transition: all 0.3s;
+    }
+
+    /* Checkmark */
+    .checkmark-wrap {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none; opacity: 0; transition: opacity 0.3s;
+    }
+    .checkmark-wrap.show { opacity: 1; }
+    .checkmark-circle {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: var(--green);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 32px rgba(74,124,89,0.4);
+      animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes pop {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+
+    /* Camera error */
+    .cam-error {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 10px; background: var(--bg2);
+      color: var(--muted); font-size: 0.78rem;
+      text-align: center; padding: 20px;
+    }
+
+    /* ── PROGRESS DOTS ────────────────────────────────────────── */
+    .capture-dots {
+      display: flex; gap: 6px; justify-content: center;
+    }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--border2);
+      transition: background 0.3s, transform 0.2s;
+    }
+    .dot.active   { background: var(--accent); transform: scale(1.5); }
+    .dot.done-dot { background: var(--green);  transform: scale(1); }
+
+    /* ── ENROLL BUTTON ────────────────────────────────────────── */
+    .enroll-btn {
+      width: 100%; max-width: 320px; padding: 14px;
+      background: var(--text);
+      border: none; border-radius: 999px;
+      color: var(--bg);
+      font-family: var(--ff); font-size: 0.88rem; font-weight: 500;
+      cursor: pointer; letter-spacing: 0.01em;
+      transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+      box-shadow: var(--shadow);
+    }
+    .enroll-btn:hover {
+      background: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(181,118,58,0.3);
+    }
+    .enroll-btn:active { transform: translateY(0); }
+    .enroll-btn:disabled {
+      opacity: 0.45; cursor: not-allowed;
+      transform: none; box-shadow: none;
+    }
+
+    .hint-text {
+      font-size: 0.7rem; color: var(--muted);
+      text-align: center;
+    }
+    .hint-text kbd {
+      background: var(--surface2);
+      padding: 1px 6px; border-radius: 5px;
+      border: 1px solid var(--border2);
+      font-family: var(--mono); font-size: 0.68rem;
+    }
+
+    /* ── FORM PANELS ──────────────────────────────────────────── */
+    .form-panel {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex; flex-direction: column; gap: 16px;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.3s;
+    }
+    .form-panel:hover { box-shadow: var(--shadow-lg); }
+
+    .section-label {
+      font-family: var(--serif);
+      font-size: 0.74rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .section-desc {
+      font-size: 0.76rem; color: var(--muted);
+      line-height: 1.6; margin-top: 2px;
+    }
+
+    .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+
+    label {
+      font-size: 0.71rem; color: var(--text2);
+      font-weight: 500; letter-spacing: 0.03em;
+    }
+
+    input {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 10px 13px;
+      color: var(--text);
+      font-family: var(--ff); font-size: 0.87rem;
+      outline: none; transition: all 0.2s; width: 100%;
+    }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(181,118,58,0.12);
+      background: var(--surface);
+    }
+    input::placeholder { color: var(--muted); opacity: 0.55; }
+
+    /* ── ENROLLED LIST ────────────────────────────────────────── */
+    .enrolled-list {
+      max-height: 240px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 7px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+    }
+
+    .enrolled-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      animation: fadeUp 0.3s ease;
+      transition: background 0.15s;
+    }
+    .enrolled-item:hover { background: var(--bg2); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .e-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--bg2); border: 1.5px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; font-weight: 600;
+      color: var(--accent); font-family: var(--serif);
+      flex-shrink: 0;
+    }
+
+    .e-info { flex: 1; min-width: 0; }
+    .e-name {
+      font-size: 0.83rem; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .e-meta {
+      font-family: var(--mono); font-size: 0.63rem;
+      color: var(--muted); margin-top: 1px;
+    }
+
+    .del-btn {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; padding: 5px; border-radius: 6px;
+      transition: all 0.15s; display: flex; align-items: center;
+    }
+    .del-btn:hover {
+      color: var(--red);
+      background: var(--red-lt);
+    }
+
+    .empty-enrolled {
+      padding: 20px; text-align: center; color: var(--muted);
+      font-size: 0.78rem;
+      border: 1px dashed var(--border2); border-radius: 10px;
+    }
+    .guide-face {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.4s ease;
+  pointer-events: none;
+}
+
+.scanning .guide-face {
+  opacity: 0.8;
+}
+
+.guide-left  { animation: moveLeft 1.2s ease-in-out infinite alternate; }
+.guide-right { animation: moveRight 1.2s ease-in-out infinite alternate; }
+.guide-up    { animation: moveUp 1.2s ease-in-out infinite alternate; }
+.guide-down  { animation: moveDown 1.2s ease-in-out infinite alternate; }
+
+@keyframes moveLeft  { from { transform: translateX(0); } to { transform: translateX(-12px); } }
+@keyframes moveRight { from { transform: translateX(0); } to { transform: translateX(12px); } }
+@keyframes moveUp    { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+@keyframes moveDown  { from { transform: translateY(0); } to { transform: translateY(12px); } }
+    /* ── TOAST ────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 12px 18px;
+      font-size: 0.8rem; z-index: 9998;
+      transform: translateY(70px); opacity: 0;
+      transition: all 0.38s cubic-bezier(0.34,1.56,0.64,1);
+      max-width: 300px; box-shadow: var(--shadow-lg);
+      color: var(--text2);
+    }
+    #toast.show    { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 3px solid var(--green); }
+    #toast.error   { border-left: 3px solid var(--red); }
+    #toast.info    { border-left: 3px solid var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">Attend<em>X</em></div>
+  <a href="/" class="nav-back">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Dashboard
+  </a>
+</nav>
+
+<div class="page">
+
+  <!-- LEFT: Camera + enroll -->
+  <div class="camera-section">
+    <div>
+      <h1 class="page-title">Enroll a <em>face</em></h1>
+      <p class="page-subtitle">Fill in the details, position your face within the oval, then press Enroll and hold still for ~6 seconds.</p>
+    </div>
+
+    <div class="face-frame-wrap" id="faceWrap">
+      <video id="enrollVideo" autoplay playsinline muted></video>
+
+      <!-- SVG overlay: vignette + oval guide -->
+      <svg class="face-svg-overlay" id="faceSVG"
+           viewBox="0 0 320 380" preserveAspectRatio="none">
+        <defs>
+          <clipPath id="vignetteClip">
+            <path d="M0,0 H320 V380 H0 Z M160,190 m-88,0 a88,118 0 1,0 176,0 a88,118 0 1,0 -176,0"
+                  fill-rule="evenodd"/>
+          </clipPath>
+        </defs>
+
+        <!-- Warm vignette outside oval -->
+        <rect x="0" y="0" width="320" height="380"
+              fill="rgba(44,36,23,0.38)" clip-path="url(#vignetteClip)"/>
+
+        <!-- Progress arc -->
+        <ellipse class="oval-progress" id="ovalProgress"
+                 cx="160" cy="190" rx="91" ry="121"/>
+
+        <!-- Oval ring -->
+        <ellipse class="oval-ring" cx="160" cy="190" rx="88" ry="118"/>
+
+        <!-- Corner brackets -->
+        <g>
+          <path class="bracket" d="M92,100 L92,80 L112,80"/>
+          <path class="bracket" d="M208,80 L228,80 L228,100"/>
+          <path class="bracket" d="M92,280 L92,300 L112,300"/>
+          <path class="bracket" d="M208,300 L228,300 L228,280"/>
+        </g>
+
+        <!-- Scan line clipped to oval -->
+        <clipPath id="ovalClip">
+          <ellipse cx="160" cy="190" rx="86" ry="116"/>
+        </clipPath>
+        <line class="scan-line-el" id="scanLine"
+              x1="80" y1="190" x2="240" y2="190"
+              clip-path="url(#ovalClip)"/>
+      </svg>
+
+      <div class="face-status" id="faceStatus">Position your face in the oval</div>
+      <div class="guide-face" id="guideFace">
+        <svg viewBox="0 0 120 120" width="80" height="80">
+          <circle cx="60" cy="60" r="45" fill="none" stroke="var(--accent)" stroke-width="2"/>
+          <circle cx="45" cy="50" r="4" fill="var(--accent)"/>
+          <circle cx="75" cy="50" r="4" fill="var(--accent)"/>
+          <path d="M45 75 Q60 85 75 75" stroke="var(--accent)" stroke-width="2" fill="none"/>
+        </svg>
+      </div>
+      <div class="checkmark-wrap" id="checkmark">
+        <div class="checkmark-circle">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+               stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="capture-dots" id="captureDots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+
+    <button class="enroll-btn" id="enrollBtn" onclick="startEnrollment()">
+      Enroll Face
+    </button>
+
+    <p class="hint-text">
+      Press <kbd>Space</kbd> to start enrollment
+    </p>
+  </div>
+
+  <!-- RIGHT: Form + enrolled list -->
+  <div style="display:flex; flex-direction:column; gap:18px;">
+
+    <div class="form-panel">
+      <div>
+        <div class="section-label">Person Details</div>
+        <p class="section-desc">Only the first name appears on-screen during attendance.</p>
+      </div>
+      <div class="input-row">
+        <div class="field">
+          <label>First Name</label>
+          <input type="text" id="firstName" placeholder="Jane"/>
+        </div>
+        <div class="field">
+          <label>Last Name</label>
+          <input type="text" id="lastName" placeholder="Doe"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Roll Number</label>
+        <input type="text" id="rollNumber" placeholder="CS2024001"/>
+      </div>
+    </div>
+
+    <div class="form-panel">
+      <div class="section-label">Enrolled People</div>
+      <div class="enrolled-list" id="enrolledList">
+        <div class="empty-enrolled">No enrollments yet</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Camera (browser only — no Flask stream conflict) ──────────────────────────
+const video  = document.getElementById('enrollVideo');
+const faceWrap = document.getElementById('faceWrap');
+const faceSVG  = document.getElementById('faceSVG');
+const canvas   = document.createElement('canvas');
+let stream = null;
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+    });
+    video.srcObject = stream;
+  } catch (err) {
+    faceWrap.innerHTML = `
+      <div class="cam-error">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+          <line x1="1" y1="1" x2="23" y2="23" stroke="${getComputedStyle(document.documentElement).getPropertyValue('--red').trim()}"/>
+        </svg>
+        Camera access denied or unavailable.<br>Please allow camera permission and reload.
+      </div>`;
+    showToast('Camera access denied', 'error');
+  }
+}
+startCamera();
+
+// ── Enrollment logic ──────────────────────────────────────────────────────────
+const TOTAL_FRAMES     = 180;   // more frames
+const CAPTURE_DURATION = 10000; // 10 seconds
+let isEnrolling = false;
+let capturedFrames = [];
+
+const ovalProgress = document.getElementById('ovalProgress');
+const faceStatus   = document.getElementById('faceStatus');
+const checkmark    = document.getElementById('checkmark');
+const enrollBtn    = document.getElementById('enrollBtn');
+const dots         = document.querySelectorAll('.dot');
+const scanLineEl   = document.getElementById('scanLine');
+
+const TOTAL_PERIMETER = 785;
+
+function setProgress(p) {
+  ovalProgress.style.strokeDashoffset = TOTAL_PERIMETER * (1 - p);
+  const dotIdx = Math.floor(p * 10);
+  dots.forEach((d, i) => {
+    d.classList.toggle('done-dot', i < dotIdx);
+    d.classList.toggle('active',   i === dotIdx && p < 1);
+  });
+}
+
+function captureFrame() {
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.82);
+}
+
+const STATUS_PHASES = [
+  { text: "Look straight ahead", guide: "" },
+  { text: "Turn slightly left", guide: "guide-left" },
+  { text: "Turn slightly right", guide: "guide-right" },
+  { text: "Tilt head up slightly", guide: "guide-up" },
+  { text: "Tilt head down slightly", guide: "guide-down" },
+  { text: "Hold steady…", guide: "" }
+];
+
+async function startEnrollment() {
+  const firstName  = document.getElementById('firstName').value.trim();
+  const lastName   = document.getElementById('lastName').value.trim();
+  const rollNumber = document.getElementById('rollNumber').value.trim();
+
+  if (!firstName)  { showToast('Enter a First Name', 'error'); return; }
+  if (!rollNumber) { showToast('Enter a Roll Number', 'error'); return; }
+  if (isEnrolling) return;
+
+  isEnrolling = true;
+  capturedFrames = [];
+  enrollBtn.disabled = true;
+  enrollBtn.textContent = 'Scanning…';
+
+  faceSVG.classList.add('scanning');
+  faceSVG.classList.remove('done-state');
+  checkmark.classList.remove('show');
+  setProgress(0);
+
+  const interval = CAPTURE_DURATION / TOTAL_FRAMES;
+  let count = 0;
+
+  const timer = setInterval(() => {
+    if (count >= TOTAL_FRAMES) {
+      clearInterval(timer);
+      submitEnrollment(firstName, lastName, rollNumber);
+      return;
+    }
+    capturedFrames.push(captureFrame());
+    count++;
+    const p = count / TOTAL_FRAMES;
+    setProgress(p);
+    const guide = document.getElementById("guideFace");
+guide.classList.remove("guide-left","guide-right","guide-up","guide-down");
+
+const phaseIndex = Math.floor(p * STATUS_PHASES.length);
+const phase = STATUS_PHASES[Math.min(phaseIndex, STATUS_PHASES.length - 1)];
+
+faceStatus.textContent = phase.text;
+
+if (phase.guide) {
+  guide.classList.add(phase.guide);
+}  }, interval);
+}
+
+async function submitEnrollment(firstName, lastName, rollNumber) {
+  faceStatus.textContent = 'Processing…';
+  enrollBtn.textContent  = 'Processing…';
+
+  try {
+    const res  = await fetch('/capture_frames', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ first_name: firstName, last_name: lastName,
+                             roll_number: rollNumber, frames: capturedFrames }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      faceSVG.classList.remove('scanning');
+      faceSVG.classList.add('done-state');
+      checkmark.classList.add('show');
+      faceStatus.textContent = 'Enrolled!';
+      setProgress(1);
+      showToast(data.message, 'success');
+
+      document.getElementById('firstName').value  = '';
+      document.getElementById('lastName').value   = '';
+      document.getElementById('rollNumber').value = '';
+
+      loadEnrolled();
+
+      setTimeout(() => {
+        faceSVG.classList.remove('done-state');
+        checkmark.classList.remove('show');
+        faceStatus.textContent = 'Position your face in the oval';
+        setProgress(0);
+        enrollBtn.textContent  = 'Enroll Face';
+        enrollBtn.disabled     = false;
+        isEnrolling = false;
+      }, 2800);
+
+    } else {
+      showToast(data.message, 'error');
+      resetState();
+    }
+  } catch (e) {
+    showToast('Network error — please try again.', 'error');
+    resetState();
+  }
+}
+
+function resetState() {
+  faceSVG.classList.remove('scanning', 'done-state');
+  faceStatus.textContent = 'Position your face in the oval';
+  setProgress(0);
+  dots.forEach(d => d.classList.remove('done-dot', 'active'));
+  enrollBtn.textContent = 'Enroll Face';
+  enrollBtn.disabled    = false;
+  isEnrolling = false;
+}
+
+// ── Enrolled list ─────────────────────────────────────────────────────────────
+async function loadEnrolled() {
+  const res    = await fetch('/get_enrolled');
+  const people = await res.json();
+  const list   = document.getElementById('enrolledList');
+
+  if (!people.length) {
+    list.innerHTML = '<div class="empty-enrolled">No enrollments yet</div>';
+    return;
+  }
+  list.innerHTML = people.map(p => {
+    const init = (p.first_name[0] + (p.last_name[0] || '')).toUpperCase();
+    return `
+      <div class="enrolled-item">
+        <div class="e-avatar">${init}</div>
+        <div class="e-info">
+          <div class="e-name">${p.first_name} ${p.last_name}</div>
+          <div class="e-meta">${p.roll_number} &middot; ${p.samples} samples</div>
+        </div>
+        <button class="del-btn" onclick="deleteEnrolled('${p.roll_number}',this)" title="Remove">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+          </svg>
+        </button>
+      </div>`;
+  }).join('');
+}
+
+async function deleteEnrolled(roll, btn) {
+  btn.disabled = true;
+  const res  = await fetch(`/delete_enrolled/${roll}`, { method: 'DELETE' });
+  const data = await res.json();
+  showToast(data.message, data.success ? 'success' : 'error');
+  if (data.success) loadEnrolled();
+  else btn.disabled = false;
+}
+
+loadEnrolled();
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => { t.className = ''; }, 3800);
+}
+
+// Spacebar shortcut
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !isEnrolling &&
+      !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
+    e.preventDefault();
+    startEnrollment();
+  }
+});
+</script>
+</body>
+</html>

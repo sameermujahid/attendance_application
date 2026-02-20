@@ -1,0 +1,6 @@
+flask
+ultralytics
+opencv-python-headless
+numpy
+pandas
+sib-api-v3-sdk
